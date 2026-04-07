@@ -9,14 +9,14 @@ from langchain.tools import tool
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.messages import ToolMessage
 
-from logger import *
+from shared.logger import *
 
 
 load_dotenv()
 
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
-llm = init_chat_model(model="llama-3.1-8b-instant", model_provider='groq',temperature=0.2)
+llm = init_chat_model(model="llama-3.3-70b-versatile", model_provider='groq',temperature=0.2)
 
 vectorstore = Chroma(persist_directory="chroma_db",
                      collection_name="documentation_assistant", 
@@ -26,7 +26,7 @@ vectorstore = Chroma(persist_directory="chroma_db",
 def retrieve_context(query: str, top_k: int = 4):
     """Retrieve relevant context from the vector store based on the query."""
     try:
-        results = vectorstore.similarity_search(query, k=top_k)
+        results = vectorstore.as_retriever().invoke(query, k=top_k)
         log_info(f"Retrieved {len(results)} relevant documents for the query.")
         serialized_results = '\n\n'.join([f"Source: {result.metadata.get('source', 'Unknown')}\n\nContent: {result.page_content}" for result in results])
         return serialized_results, results
@@ -43,11 +43,6 @@ def main(query: str):
         "You are a helpful AI assistant that answers questions about LangChain documentation. "
         "You have access to a retrieve_context tool that retrieves relevant documentation. "
         "Use the tool to find relevant information before answering questions. "
-        """IMPORTANT:
-        - Always include the source URLs used to generate the answer.
-        - If multiple sources are used, list all of them.
-        - Format sources clearly at the end under "Sources".
-        - Do not make up URLs. Only use URLs present in the context."""
         "If you cannot find the answer in the retrieved documentation, say so."
     )
     
@@ -70,7 +65,6 @@ def main(query: str):
         if isinstance(message, ToolMessage) and hasattr(message, 'artifact'):
             if isinstance(message.artifact, list):
                 context_docs.extend(message.artifact)
-    
     return {'answer': answer, 'context_docs': context_docs}
 
 
